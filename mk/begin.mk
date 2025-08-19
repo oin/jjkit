@@ -1,4 +1,3 @@
-.SECONDEXPANSION: # Required for object-source conversion in rules
 .SUFFIXES: # Remove all implicit rules
 
 # Host detection
