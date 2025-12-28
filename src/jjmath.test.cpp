@@ -1,4 +1,4 @@
-#include "ext/doctest.h"
+#include "../ext/doctest.h"
 #include "jjmath.hpp"
 
 TEST_SUITE_BEGIN("jjmath");
