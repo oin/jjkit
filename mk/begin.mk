@@ -11,10 +11,15 @@ MkTargetDir = @mkdir -p "$(@D)"
 ThisDir = $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
 # Deduce a product identifier from the Makefile path
+_S? = $(subst $(_S_EMPTY) ,?,$1)
+_?S = $(subst ?, ,$1)
+_NOTDIR = $(call _?S,$(notdir $(call _S?,$1)))
+_PATSUBST = $(call _?S,$(patsubst $1,$2,$(call _S?,$3)))
 _MP := $(firstword $(MAKEFILE_LIST))
 _MF := $(notdir $(_MP))
 _PF := $(patsubst Makefile.%.mk,%,$(_MF))
-_MPSTEM := $(basename $(notdir $(patsubst %/,%,$(dir $(abspath $(_MP))))))
+_MPABS := $(abspath $(_MP))
+_MPSTEM := $(basename $(notdir $(call _PATSUBST,%/,%,$(dir $(_MPABS)))))
 PRODUCT ?= $(if $(filter $(_MF),Makefile),$(_MPSTEM),$(_PF))
 
 # Build directories
