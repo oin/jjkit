@@ -223,8 +223,7 @@ struct jjreg_e8 {
  */
 template <typename T>
 struct jjreg_struct_ {
-	static constexpr size_t size = sizeof(T);
-
+	static constexpr size_t field_size = sizeof(T);
 	static constexpr void write(const T& v, uint8_t* out) {
 		std::memcpy(out, &v, sizeof(T));
 	}
@@ -244,7 +243,7 @@ struct jjreg_struct_ {
 template <typename T, typename Serializer = jjreg_struct_<T>>
 struct jjreg_struct {
 	using field_type = T;
-	static constexpr size_t field_size = Serializer::size;
+	static constexpr size_t field_size = Serializer::field_size;
 
 	constexpr void write(const T& v, uint8_t* out) const {
 		Serializer::write(v, out);
