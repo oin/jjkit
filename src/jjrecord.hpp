@@ -29,33 +29,6 @@ constexpr uint16_t jjrecord_crc16(const uint8_t* data, size_t size, uint16_t crc
 constexpr size_t jjrecord_header_size = 4;
 
 /**
- * A configuration within a record storage area.
- *
- * @tparam Redundancy The number of slots to use for rotating copies of the record.
- */
-template <uint8_t Redundancy>
-struct jjrecord_slot_t {
-	/**
-	 * The index of the current slot in the storage area.
-	 */
-	uint8_t index;
-	/**
-	 * The sequence number of the current slot.
-	 */
-	uint8_t sequence_number;
-
-	/**
-	 * @return The next slot in the rotation.
-	 */
-	constexpr jjrecord_slot_t next() const {
-		return jjrecord_slot_t{
-			static_cast<uint8_t>((index + 1) % Redundancy),
-			static_cast<uint8_t>(sequence_number + 1)
-		};
-	}
-};
-
-/**
  * A record with rotating slots.
  *
  * @tparam Type The magic number identifying the record type.
@@ -65,10 +38,6 @@ struct jjrecord_slot_t {
 template <uint8_t Type, size_t Size, uint8_t Redundancy>
 class jjrecord {
 public:
-	/**
-	 * A configuration within a record storage area.
-	 */
-	using slot_t = jjrecord_slot_t<Redundancy>;
 	/**
 	 * The magic number identifying the record type.
 	 */
@@ -92,6 +61,35 @@ public:
 
 	static_assert(Size > jjrecord_header_size, "Size must be greater than header size.");
 	static_assert(Redundancy > 0, "Redundancy must be greater than zero.");
+
+
+	/**
+	 * A slot within the record storage area.
+	 */
+	struct slot_t {
+		/**
+		* The index of the current slot in the storage area.
+		*/
+		uint8_t index;
+		/**
+		* The sequence number of the current slot.
+		*/
+		uint8_t sequence_number;
+
+		/**
+		* @return The next slot in the rotation.
+		*/
+		constexpr slot_t next() const {
+			return {
+				static_cast<uint8_t>((index + 1) % Redundancy),
+				static_cast<uint8_t>(sequence_number + 1)
+			};
+		}
+
+		constexpr jjrecord record() const {
+			return jjrecord{*this};
+		}
+	};
 public:
 	jjrecord() : slot{0, 0} {}
 	jjrecord(slot_t slot) : slot{slot} {}
