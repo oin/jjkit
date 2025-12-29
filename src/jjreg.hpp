@@ -15,6 +15,7 @@
 #define JJREG__DECL_VIEW(name, val) jjreg_proxy<decltype(val)> name;
 #define JJREG__INIT_VIEW(name, val) , name{ptr + jjreg_offset(field_size, _index_##name), meta.name}
 #define JJREG__RESET_CALL(name, val) name.reset();
+#define JJREG__SIZE_SUM(name, val) + decltype(val)::field_size
 
 /**
  * Create a registry with the given name and schema.
@@ -26,9 +27,12 @@
 	struct schema_name { \
 		enum { LIST(JJREG__ENUM) _index__count }; \
 		/** The size of each field, in bytes. */ \
-		static constexpr size_t field_size[_index__count] = { LIST(JJREG__SIZE) }; \
+		static constexpr size_t field_size(size_t index) { \
+			constexpr size_t arr[_index__count] = { LIST(JJREG__SIZE) }; \
+			return arr[index]; \
+		} \
 		/** The total size of the registry, in bytes. */ \
-		static constexpr size_t size = jjreg_offset(field_size, _index__count); \
+		static constexpr size_t size() { return 0 LIST(JJREG__SIZE_SUM); } \
 		LIST(JJREG__DECL) \
 		struct view_t { \
 			const schema_name& meta; \
@@ -43,8 +47,6 @@
 			return view_t{*this, ptr}; \
 		} \
 	}; \
-	constexpr size_t schema_name::field_size[]; \
-	constexpr size_t schema_name::size; \
 
 #pragma mark - Types
 
@@ -55,6 +57,15 @@ constexpr size_t jjreg_offset(const size_t* sizes, size_t index) {
 	size_t offset = 0;
 	for(size_t i=0; i<index; ++i) {
 		offset += sizes[i];
+	}
+	return offset;
+}
+
+template <typename Getter>
+constexpr size_t jjreg_offset(Getter getter, size_t index) {
+	size_t offset = 0;
+	for(size_t i=0; i<index; ++i) {
+		offset += getter(i);
 	}
 	return offset;
 }
@@ -80,7 +91,7 @@ struct jjreg_proxy {
 	 */
 	const Meta& meta;
 
-	void set(field_t&& v) {
+	void set(field_t v) {
 		meta.write(v, ptr);
 	}
 	field_t get() const {
@@ -89,11 +100,27 @@ struct jjreg_proxy {
 	operator field_t() const {
 		return get();
 	}
-	void operator=(field_t&& v) {
-		set(std::forward<field_t>(v));
+	void operator=(field_t v) {
+		set(v);
 	}
 	void reset() {
 		meta.write(meta.default_value, ptr);
+	}
+};
+
+#pragma mark Boolean
+
+struct jjreg_bool {
+	using field_type = bool;
+	static constexpr size_t field_size = 1;
+
+	bool default_value;
+
+	constexpr void write(bool v, uint8_t* out) const {
+		*out = v? 1 : 0;
+	}
+	constexpr bool read(const uint8_t* in) const {
+		return (*in != 0);
 	}
 };
 
@@ -176,6 +203,11 @@ struct jjreg_e8 {
 		return static_cast<Enum>(*in);
 	}
 };
+
+template <typename Enum>
+constexpr jjreg_e8<Enum> jjreg_enum(size_t size, Enum default_value) {
+	return jjreg_e8<Enum>{size, default_value};
+}
 
 #pragma mark Struct
 
@@ -286,6 +318,9 @@ struct jjreg_proxy<jjreg_string<N>> {
 	}
 	void reset() {
 		set(meta.default_value);
+	}
+	bool is_empty() const {
+		return ptr[0] == 0;
 	}
 };
 

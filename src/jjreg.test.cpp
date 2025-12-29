@@ -98,17 +98,17 @@ TEST_CASE("[jjreg] simple test") {
 	auto m = settings.mode;
 	CHECK(m == settings_mode_auto);
 
-	CHECK(settings.meta.size == 30);
+	CHECK(settings.meta.size() == 30);
 }
 
 TEST_CASE("[jjreg] schema size and offsets") {
 	uint8_t data[32] = {0};
 	auto view = jjreg_simple_schema(data);
 
-	CHECK(view.meta.field_size[jjreg_simple_schema_t::_index_a] == 1);
-	CHECK(view.meta.field_size[jjreg_simple_schema_t::_index_title] == 4);
-	CHECK(view.meta.field_size[jjreg_simple_schema_t::_index_scores] == 3);
-	CHECK(view.meta.size == 8);
+	CHECK(view.meta.field_size(jjreg_simple_schema_t::_index_a) == 1);
+	CHECK(view.meta.field_size(jjreg_simple_schema_t::_index_title) == 4);
+	CHECK(view.meta.field_size(jjreg_simple_schema_t::_index_scores) == 3);
+	CHECK(view.meta.size() == 8);
 
 	CHECK(view.title.ptr == view.ptr + 1);
 	CHECK(view.scores.ptr == view.ptr + 5);
@@ -173,9 +173,8 @@ TEST_CASE("[jjreg] array reset and set") {
 	CHECK(view.values[1] == 5);
 	CHECK(view.values[2] == 5);
 
-	view.values[0] = 0;
-	view.values[1] = 4;
-	view.values[2] = 9;
+	uint8_t payload[3] = {0, 4, 9};
+	view.values.set(payload, 3);
 	CHECK(view.values[0] == 0);
 	CHECK(view.values[1] == 4);
 	CHECK(view.values[2] == 9);
