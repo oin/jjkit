@@ -8,6 +8,7 @@ jjring.cpp \
 jjring.test.cpp \
 jjmath.test.cpp \
 jjrecord.test.cpp \
+jjreg.test.cpp \
 
 OBJ := $(addprefix $(OBJDIR)/src/,$(addsuffix .o,$(SRC)))
 
