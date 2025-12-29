@@ -26,7 +26,7 @@ constexpr uint16_t jjcrc16(const uint8_t* data, size_t size, uint16_t crc = 0xFF
 /**
  * The size of the record header, in bytes.
  */
-constexpr size_t jjrecord_header_size = 7;
+constexpr size_t jjrecord_header_size = 4;
 
 struct jjrecord_t;
 
@@ -35,23 +35,17 @@ struct jjrecord_t;
  */
 struct jjrecord_config_t {
 	/**
-	 * The magic number identifying the record type.
-	 */
-	uint16_t type;
-	/**
-	 * The version number of the record format.
-	 *
-	 * Versions newer than this number will not be read.
-	 */
-	uint16_t version;
-	/**
 	 * The size of the record, in bytes.
 	 */
-	size_t size;
+	uint16_t size;
 	/**
 	 * The number of slots to use for rotating copies of the record.
 	 */
-	size_t redundancy;
+	uint8_t redundancy;
+	/**
+	 * The magic number identifying the record type.
+	 */
+	uint8_t type;
 
 	/**
 	 * @return The size of the payload attached to the record, in bytes.
@@ -60,9 +54,26 @@ struct jjrecord_config_t {
 		return size - jjrecord_header_size;
 	}
 
-	constexpr jjrecord_t record(size_t index, uint8_t sequence_number) const;
+	/**
+	 * The total size taken by the record with all its slots, in bytes.
+	 */
+	constexpr size_t total_size() const {
+		return size * redundancy;
+	}
+
+	/**
+	 * @return A jjrecord_t positioned at the given slot index and sequence number.
+	 */
+	constexpr jjrecord_t record(uint8_t index, uint8_t sequence_number) const;
+	/**
+	 * @return A jjrecord_t positioned at the initial slot and sequence number.
+	 */
 	constexpr jjrecord_t record() const;
 };
+
+constexpr jjrecord_config_t jjrecord_config(uint16_t size, uint8_t redundancy, uint8_t type) {
+	return {size, redundancy, type};
+}
 
 /**
  * A position within a record storage area.
@@ -71,11 +82,11 @@ struct jjrecord_t {
 	/**
 	 * The configuration used for the record.
 	 */
-	const jjrecord_config_t& config;
+	jjrecord_config_t config;
 	/**
 	 * The index of the current slot in the storage area.
 	 */
-	size_t index;
+	uint8_t index;
 	/**
 	 * The sequence number of the current slot.
 	 */
@@ -90,7 +101,7 @@ struct jjrecord_t {
 	 *
 	 * @note Typical usage involves calling this method multiple times with each slot index.
 	 */
-	bool read(size_t index, const uint8_t* in, uint8_t* out) {
+	bool read(uint8_t index, const uint8_t* in, uint8_t* out) {
 		uint8_t* it = const_cast<uint8_t*>(in);
 
 		const auto crc_read = it[0] | (it[1] << 8);
@@ -99,14 +110,8 @@ struct jjrecord_t {
 		if(crc_read != crc_calc) {
 			return false;
 		}
-		const auto type_read = it[0] | (it[1] << 8);
-		it += 2;
+		const auto type_read = *it++;
 		if(type_read != config.type) {
-			return false;
-		}
-		const auto version_read = it[0] | (it[1] << 8);
-		it += 2;
-		if(version_read > config.version) {
 			return false;
 		}
 		const auto seqnum_read = *it++;
@@ -144,11 +149,8 @@ struct jjrecord_t {
 	 */
 	void write(const uint8_t* in, uint8_t* out) {
 		uint8_t* it = out + 2; // Reserve space for CRC
-		*it++ = static_cast<uint8_t>(config.type & 0xFF);
-		*it++ = static_cast<uint8_t>((config.type >> 8) & 0xFF);
-		*it++ = static_cast<uint8_t>(config.version & 0xFF);
-		*it++ = static_cast<uint8_t>((config.version >> 8) & 0xFF);
-		*it++ = static_cast<uint8_t>(sequence_number % 0xFF);
+		*it++ = config.type;
+		*it++ = sequence_number;
 		std::copy_n(in, config.payload_size(), it);
 
 		const uint16_t crc = jjcrc16(out + 2, config.size - 2);
@@ -186,7 +188,7 @@ struct jjrecord_t {
 	}
 };
 
-constexpr jjrecord_t jjrecord_config_t::record(size_t index, uint8_t sequence_number) const {
+constexpr jjrecord_t jjrecord_config_t::record(uint8_t index, uint8_t sequence_number) const {
 	return {*this, index, sequence_number};
 }
 constexpr jjrecord_t jjrecord_config_t::record() const {
