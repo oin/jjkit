@@ -204,10 +204,17 @@ struct jjreg_e8 {
 	}
 };
 
-template <typename Enum>
-constexpr jjreg_e8<Enum> jjreg_enum(size_t size, Enum default_value) {
-	return jjreg_e8<Enum>{size, default_value};
-}
+#define JJREG_E8__DECL(prefix, name, str) prefix##_##name,
+#define JJREG_E8__STR(prefix, name, str) str,
+#define JJREG_E8(name, LIST, defval) \
+	enum name##_t : uint8_t { \
+		LIST(name, JJREG_E8__DECL) \
+		name##_count, \
+	}; \
+	constexpr const char* name##_str[name##_count] = { \
+		LIST(name, JJREG_E8__STR) \
+	}; \
+	constexpr auto name = jjreg_e8<name##_t>{name##_count, name##_##defval};
 
 #pragma mark Struct
 
@@ -218,10 +225,10 @@ template <typename T>
 struct jjreg_struct_ {
 	static constexpr size_t size = sizeof(T);
 
-	constexpr void write(const T& v, uint8_t* out) const {
+	static constexpr void write(const T& v, uint8_t* out) {
 		std::memcpy(out, &v, sizeof(T));
 	}
-	constexpr T read(const uint8_t* in) const {
+	static constexpr T read(const uint8_t* in) {
 		T v;
 		std::memcpy(&v, in, sizeof(T));
 		return v;
