@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 /**
  * @file
@@ -34,7 +35,7 @@
 		/** The total size of the registry, in bytes. */ \
 		enum { size = 0 LIST(JJREG__SIZE_SUM) }; \
 		enum { capacity = max_size }; \
-		static_assert(size <= capacity, "Registry size exceeds capacity"); \
+		static_assert((size_t)size <= (size_t)capacity, "Registry size exceeds capacity"); \
 		LIST(JJREG__DECL) \
 		struct view_t { \
 			uint8_t* ptr; \
