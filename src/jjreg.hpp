@@ -23,7 +23,7 @@
  * @param schema_name Name of the generated registry struct.
  * @param LIST X-macro listing the fields of the schema, such as : `#define SCHEMA(_) _(field1, (jjreg_u8{0, 100, 50})) _(field2, (jjreg_string<16>{"default"})) )`
  */
-#define JJREG(schema_name, LIST) \
+#define JJREG(schema_name, max_size, LIST) \
 	struct schema_name { \
 		enum { LIST(JJREG__ENUM) _index__count }; \
 		/** The size of each field, in bytes. */ \
@@ -32,23 +32,38 @@
 			return arr[index]; \
 		} \
 		/** The total size of the registry, in bytes. */ \
-		static constexpr size_t size() { return 0 LIST(JJREG__SIZE_SUM); } \
+		enum { size = 0 LIST(JJREG__SIZE_SUM) }; \
+		enum { capacity = max_size }; \
+		static_assert(size <= capacity, "Registry size exceeds capacity"); \
 		LIST(JJREG__DECL) \
 		struct view_t { \
-			const schema_name& meta; \
 			uint8_t* ptr; \
+			const schema_name& meta; \
 			LIST(JJREG__DECL_VIEW) \
-			view_t(const schema_name& meta, uint8_t* ptr) : meta(meta), ptr(ptr) LIST(JJREG__INIT_VIEW) {} \
+			view_t(const schema_name& meta, uint8_t* ptr) : ptr(ptr), meta(meta) LIST(JJREG__INIT_VIEW) {} \
 			void reset() { \
 				LIST(JJREG__RESET_CALL) \
 			} \
 		}; \
+		struct buffer_t : view_t { \
+			uint8_t data[capacity]; \
+			buffer_t(const schema_name& meta) : view_t(meta, data) { \
+				this->reset(); \
+			} \
+		}; \
+		buffer_t operator()() const { \
+			return buffer_t{*this}; \
+		} \
 		view_t operator()(uint8_t* ptr) const { \
 			return view_t{*this, ptr}; \
 		} \
 	}; \
+	template <> \
+	struct jjreg_proxy<jjreg_jjreg<schema_name>> : schema_name::view_t { \
+		jjreg_proxy(uint8_t* ptr, const jjreg_jjreg<schema_name>& meta) : schema_name::view_t(meta.schema, ptr) {} \
+	};
 
-#pragma mark - Types
+#pragma mark - Utilities
 
 /**
  * @return The byte offset of the given index in a schema with the given field sizes.
@@ -381,3 +396,18 @@ struct jjreg_proxy<jjreg_list<Meta, Capacity, SizeType>> {
 		return true;
 	}
 };
+
+#pragma mark Nested schema
+
+template <typename Schema>
+struct jjreg_jjreg {
+	using field_type = typename Schema::view_t;
+	static constexpr size_t field_size = Schema::capacity;
+
+	const Schema& schema;
+};
+
+template <typename Schema>
+constexpr jjreg_jjreg<Schema> jjreg_nested(const Schema& schema) {
+	return jjreg_jjreg<Schema>{schema};
+}
