@@ -525,4 +525,56 @@ TEST_CASE("[jjrecord] fuzz random slots with occasional valid record") {
 	}
 }
 
+TEST_CASE("[jjrecord] works well even with 1x redundancy") {
+	using jjrecord = jjrecord<0x5A, 128, 1>;
+	jjrecord_tester_t<jjrecord> tester{};
+	tester.setup(0, 42);
+
+	jjrecord record;
+	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
+		std::copy_n(tester.memory[slot_index], size, out);
+		return true;
+	});
+	CHECK(result == true);
+	const auto payload = record.payload();
+	CHECK(payload[0] == 0);
+	CHECK(payload[1] == 42);
+}
+
+TEST_CASE("[jjrecord] wraparound OK with 3 slots") {
+	using jjrecord = jjrecord<0x6B, 64, 3>;
+	jjrecord_tester_t<jjrecord> tester{};
+	tester.setup(0, 250);
+	tester.setup(1, 251);
+	tester.setup(2, 252);
+	jjrecord record;
+	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
+		std::copy_n(tester.memory[slot_index], size, out);
+		return true;
+	});
+	CHECK(result == true);
+	const auto payload = record.payload();
+	CHECK(payload[0] == 2);
+	CHECK(payload[1] == 252);
+}
+
+TEST_CASE("[jjrecord] rejects slot whose seqnum is behind across wrap") {
+	using jjrecord = jjrecord<0x6C, 64, 3>;
+	jjrecord_tester_t<jjrecord> tester{};
+	// Slot 0 newest in window (seq=0). Slot 1 a "stale" seq=255 (retour en arrière mod 256).
+	tester.setup(0, 0);
+	tester.setup(1, 255);
+
+	jjrecord record;
+	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
+		std::copy_n(tester.memory[slot_index], size, out);
+		return true;
+	});
+	CHECK(result == true);
+	const auto payload = record.payload();
+	// Slot 1 doit être rejeté : on garde slot 0.
+	CHECK(payload[0] == 0);
+	CHECK(payload[1] == 0);
+}
+
 TEST_SUITE_END();

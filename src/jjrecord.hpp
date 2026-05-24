@@ -167,12 +167,8 @@ public:
 		}
 		const auto seqnum_read = in[3];
 		if(slot_index > 0) {
-			int distance = seqnum_read - slot.sequence_number;
-			while(distance < 0) {
-				distance += 0xFF;
-			}
-			distance = distance % 0xFF;
-			if(distance >= (int)redundancy) {
+			const uint8_t distance = uint8_t(seqnum_read - slot.sequence_number);
+			if(distance >= redundancy) {
 				return false;
 			}
 		}
