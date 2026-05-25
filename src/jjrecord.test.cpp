@@ -211,14 +211,14 @@ TEST_CASE("[jjrecord] write_next rotates slots and wraps sequence numbers") {
 TEST_CASE("[jjrecord] recovers when earlier slots are corrupted") {
 	using jjrecord = jjrecord<0xEF, 256, 4>;
 	jjrecord_tester_t<jjrecord> tester{};
-	// Slot 0 has bad CRC
-	tester.setup(0, 1);
+	// Slot 0 has bad CRC, with seqnum well past the redundancy window
+	tester.setup(0, 101);
 	tester.memory[0][0] ^= 0x01;
-	// Slot 1 has wrong type
-	tester.setup(1, 2);
+	// Slot 1 has wrong type (also breaks CRC)
+	tester.setup(1, 102);
 	tester.memory[1][2] ^= 0x10;
-	// Slot 2 is valid and newest in window
-	tester.setup(2, 3);
+	// Slot 2 is valid and should anchor the window
+	tester.setup(2, 103);
 
 	jjrecord record;
 	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
@@ -228,7 +228,43 @@ TEST_CASE("[jjrecord] recovers when earlier slots are corrupted") {
 	CHECK(result == true);
 	const auto payload = record.payload();
 	CHECK(payload[0] == 2);
-	CHECK(payload[1] == 3);
+	CHECK(payload[1] == 103);
+}
+
+TEST_CASE("[jjrecord] recovers when slot 0 corrupted and seqnums beyond window") {
+	using jjrecord = jjrecord<0xEF, 64, 3>;
+	jjrecord_tester_t<jjrecord> tester{};
+	tester.setup(0, 100);
+	tester.memory[0][0] ^= 0x01; // corrupt slot 0 CRC
+	tester.setup(1, 101);
+	tester.setup(2, 102);
+
+	jjrecord record;
+	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
+		std::copy_n(tester.memory[slot_index], size, out);
+		return true;
+	});
+	CHECK(result == true);
+	CHECK(record.current_slot().index == 2);
+	CHECK(record.current_slot().sequence_number == 102);
+}
+
+TEST_CASE("[jjrecord] recovers when slot 0 corrupted with wrap and high seqnums") {
+	using jjrecord = jjrecord<0xEF, 64, 3>;
+	jjrecord_tester_t<jjrecord> tester{};
+	tester.setup(0, 254);
+	tester.memory[0][0] ^= 0x01; // corrupt slot 0 CRC
+	tester.setup(1, 255);
+	tester.setup(2, 0);
+
+	jjrecord record;
+	bool result = record.read([&](size_t slot_index, uint8_t* out, size_t size) {
+		std::copy_n(tester.memory[slot_index], size, out);
+		return true;
+	});
+	CHECK(result == true);
+	CHECK(record.current_slot().index == 2);
+	CHECK(record.current_slot().sequence_number == 0);
 }
 
 TEST_CASE("[jjrecord] write_next surfaces write failures") {

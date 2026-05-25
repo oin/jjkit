@@ -129,7 +129,7 @@ public:
 			if(!read_fn(i, temp, size)) {
 				return false;
 			}
-			if(read_slot(i, temp)) {
+			if(read_slot(i, temp, found)) {
 				found = true;
 			}
 		}
@@ -152,10 +152,11 @@ public:
 	 * Read a single slot from storage into the record, taking slot index and sequence number into account.
 	 * @param slot_index The index of the slot being read.
 	 * @param in The input buffer containing the slot data, of size `size` bytes.
+	 * @param check_window If true, reject the slot when its sequence number lies outside the redundancy window around the current `slot.sequence_number`. Pass false for the first slot accepted in a read pass (it anchors the window).
 	 * @return true if the slot was valid and read successfully, false otherwise.
 	 * @note Use `payload()` to access the read payload data and `current_slot()` to get the corresponding slot.
 	 */
-	bool read_slot(uint8_t slot_index, const uint8_t* in) {
+	bool read_slot(uint8_t slot_index, const uint8_t* in, bool check_window = true) {
 		const auto crc_read = in[0] | (in[1] << 8);
 		const auto crc_calc = jjrecord_crc16(in + 2, size - 2);
 		if(crc_read != crc_calc) {
@@ -166,7 +167,7 @@ public:
 			return false;
 		}
 		const auto seqnum_read = in[3];
-		if(slot_index > 0) {
+		if(check_window) {
 			const uint8_t distance = uint8_t(seqnum_read - slot.sequence_number);
 			if(distance >= redundancy) {
 				return false;
